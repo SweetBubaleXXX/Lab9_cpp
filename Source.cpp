@@ -1,19 +1,34 @@
+// cp1251
 #include <iostream>
 #include <iomanip>
+#include <vector>
 #include <Windows.h>
+
+#define a_po_russki_mozhno setlocale(LC_ALL, "Russian"); system("chcp 1251")
 
 using namespace std;
 
+const int NAME_LENGTH = 20;
+
 enum Menu { EXIT, WRITE, READ, PRINT, WRITE_TO_FILE };
-const int NUMBERS_AMOUNT = 10;
+enum Months { JAN = 1, FEB = 2, MAR = 3, APR = 4, MAY = 5, JUN = 6, JUL = 7, AUG = 8, SEP = 9, OCT = 10, NOV = 11, DEC = 12 };
 
-char* computeOutputStr(double*);
+struct Semen {
+    char name[NAME_LENGTH];
+    int monthSowing;
+    int monthSeating;
+    int monthHarvesting;
+};
 
-int writeNumbersToBuffer(char*, int, double*);
+int getNumberOfSiemens();
 
-int findMin(double*, int);
+void getSiemens(Semen*, int);
 
-void getNumbers(double*, int);
+void filterHarvesting(vector<Semen>&, Semen*, int, int);
+
+int findGreaterNameIndex(vector<Semen>&, char*);
+
+int writeNamesToBuffer(char*, int, vector<Semen>&);
 
 void getMenuFunctionNumber(int*);
 
@@ -30,11 +45,17 @@ template <typename T>
 T* readFile(const char*, int);
 
 int main(int argc, char** argv) {
+    a_po_russki_mozhno;
+
     if (argc == 1) showErrorAndExit("You should specify file path!");
     char* path = argv[1];
 
-    double* numbers = new double[NUMBERS_AMOUNT];
-    char* outputStr;
+    int numberOfSiemens;
+    Semen* siemens;
+    vector<Semen> outputSiemens;
+
+    int bufferLength;
+    char* outputBuffer;
 
     int functionNumber = 1;
     while (functionNumber && !cin.fail()) {
@@ -44,64 +65,102 @@ int main(int argc, char** argv) {
             functionNumber = 0;
             break;
         case WRITE:
-            getNumbers(numbers, NUMBERS_AMOUNT);
-            writeFile<double>(path, numbers, NUMBERS_AMOUNT);
+            numberOfSiemens = getNumberOfSiemens();
+            siemens = new Semen[numberOfSiemens];
+            getSiemens(siemens, numberOfSiemens);
+            writeFile<Semen>(path, &siemens[0], numberOfSiemens);
+            delete[] siemens;
             break;
         case READ:
         case PRINT:
         case WRITE_TO_FILE:
-            numbers = readFile<double>(path, NUMBERS_AMOUNT);
+            numberOfSiemens = getNumberOfSiemens();
+            siemens = readFile<Semen>(path, numberOfSiemens);
+            cout << "Культуры из файла:" << endl;
+            for (int i = 0; i < numberOfSiemens; i++) cout << "\"" << siemens[i].name << "\"" << endl;
             if (functionNumber == READ) break;
-            outputStr = computeOutputStr(numbers);
-            if (functionNumber == PRINT) { printMessage(outputStr, "Negative numbers"); }
-            else if (functionNumber == WRITE_TO_FILE) writeMessageToFile(outputStr, path);
-            delete[] outputStr;
+            filterHarvesting(outputSiemens, siemens, numberOfSiemens, AUG);
+            if (!outputSiemens.size()) { cout << "\nКультуры не найдены(" << endl; break; }
+            bufferLength = outputSiemens.size() * (NAME_LENGTH + 2);
+            outputBuffer = new char[bufferLength];
+            writeNamesToBuffer(outputBuffer, bufferLength, outputSiemens);
+            if (functionNumber == PRINT) { printMessage(outputBuffer, "Negative numbers"); }
+            else if (functionNumber == WRITE_TO_FILE) writeMessageToFile(outputBuffer, path);
+            outputSiemens.clear();
+            delete[] siemens;
+            delete[] outputBuffer;
             break;
         default:
             cout << "Invalid function number!" << endl;
             break;
         }
     }
-
-    delete[] numbers;
     return 0;
 }
 
-char* computeOutputStr(double* numbers) {
-    int bufferLength = NUMBERS_AMOUNT * 10;
-    char* outputBuffer = new char[bufferLength];
-    writeNumbersToBuffer(outputBuffer, bufferLength, numbers);
-    return outputBuffer;
+int getNumberOfSiemens() {
+    int numberOfSiemens;
+    cout << "Введите количество культур: ";
+    cin >> numberOfSiemens;
+    if (cin.fail() || numberOfSiemens <= 0) { puts("Неверное число!"); return 1; }
+    return numberOfSiemens;
 }
 
-int writeNumbersToBuffer(char* buffer, int bufferLength, double* numbers) {
-    int minIndex = findMin(numbers, NUMBERS_AMOUNT);
+void getSiemens(Semen* siemens, int numberOfSiemens) {
+    for (int n = 0; n < numberOfSiemens; n++) {
+        Semen* siemen = new Semen;
+
+        cout << "{\n\tНазвание культуры: ";
+        scanf_s("%s", siemen->name, NAME_LENGTH);
+        cout << "\tМесяц посева: ";
+        scanf_s("%d", &(siemen->monthSowing));
+        cout << "\tМесяц выссадки рассады: ";
+        scanf_s("%d", &(siemen->monthSeating));
+        cout << "\tМесяц уборки: ";
+        scanf_s("%d", &(siemen->monthHarvesting));
+        cout << "}" << endl;
+
+        siemens[n] = *siemen;
+        delete siemen;
+    }
+}
+
+void filterHarvesting(vector<Semen>& outputVector, Semen* inputArr, int arrayLength, int monthNumber) {
+    for (int i = 0; i < arrayLength; i++) {
+        if (inputArr[i].monthHarvesting != monthNumber) continue;
+        int insertIndex = findGreaterNameIndex(outputVector, inputArr[i].name);
+        outputVector.insert(outputVector.begin() + insertIndex, inputArr[i]);
+    }
+}
+
+int findGreaterNameIndex(vector<Semen>& siemens, char* name) {
+    if (!siemens.size()) return 0;
+    if (siemens.size() == 1) return strcmp(name, siemens[0].name) > 0;
+    int start = 0;
+    int end = siemens.size();
+    int curIndex = abs((start + end) / 2);
+    while (end > start) {
+        curIndex = abs((start + end) / 2);
+        if (strcmp(name, siemens[curIndex].name) > 0) {
+            start = curIndex + 1;
+        }
+        else {
+            end = curIndex;
+        }
+    }
+    return end;
+}
+
+int writeNamesToBuffer(char* buffer, int bufferLength, vector<Semen>& siemens) {
     int bufferPos = 0;
-    for (int i = 0; i < minIndex; i++) {
-        if (bufferPos >= bufferLength) {
-            printMessage("Some numbers could be missing!!!", "Buffer overflow");
+    for (int i = 0; i < siemens.size(); i++) {
+        if (bufferPos >= bufferLength - sizeof(char[NAME_LENGTH])) {
+            printMessage("Some values could be missing!!!", "Buffer overflow");
             return 1;
         }
-        if (numbers[i] < 0) {
-            bufferPos += sprintf(buffer + bufferPos, "%.2g ", numbers[i]);
-        }
+        bufferPos += sprintf(buffer + bufferPos, "%s, ", siemens[i].name);
     }
-    if (!bufferPos) sprintf(buffer, "%s", "Not found ='(");
     return 0;
-}
-
-int findMin(double* numbers, int length) {
-    int minIndex = 0;
-    for (int i = 1; i < length; i++)
-        if (numbers[i] < numbers[minIndex]) minIndex = i;
-    return minIndex;
-}
-
-void getNumbers(double* outputArr, int amount) {
-    cout << "Enter numbers (separated by space or new line): ";
-    for (int i = 0; i < amount; i++) {
-        cin >> outputArr[i];
-    }
 }
 
 void getMenuFunctionNumber(int* functionNumber) {
