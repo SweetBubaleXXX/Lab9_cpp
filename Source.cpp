@@ -95,6 +95,7 @@ int main(int argc, char** argv) {
             break;
         }
     }
+
     return 0;
 }
 
@@ -172,6 +173,8 @@ void getMenuFunctionNumber(int* functionNumber) {
     cout << setw(15) << right << "Write to file: " << WRITE_TO_FILE << endl;
     cout << "}\nEnter function number >> ";
     cin >> *functionNumber;
+    cin.clear();
+    cin.ignore(INT16_MAX, '\n');
 }
 
 void showErrorAndExit(const char* errorMessage) {
